@@ -7,12 +7,14 @@ import Timeline from '@/components/timeline/Timeline';
 import LayerPanel from '@/components/timeline/LayerPanel';
 import NewProjectModal from '@/components/modals/NewProjectModal';
 import SplashScreen from '@/components/modals/SplashScreen';
+import ExportModal from '@/components/modals/ExportModal';
 import AppLogo from '@/components/common/AppLogo';
 import { Save, FolderOpen, Keyboard, Plus, Download, Sun, Moon } from 'lucide-react';
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [showNewProject, setShowNewProject] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const project = useStore((s) => s.project);
   const saveProject = useStore((s) => s.saveProject);
@@ -277,18 +279,9 @@ function App() {
             Salvar
           </button>
           <button
-            onClick={() => {
-              const data = saveProject();
-              const blob = new Blob([data], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `${project.name}.ani`;
-              a.click();
-              URL.revokeObjectURL(url);
-            }}
-            className="px-2.5 py-1 rounded-lg text-xs text-text hover:bg-surface hover:text-primary transition-colors flex items-center gap-1.5 font-medium"
-            title="Exportar Projeto"
+            onClick={() => setShowExportModal(true)}
+            className="px-2.5 py-1 rounded-lg text-xs text-text hover:bg-surface hover:text-primary transition-colors flex items-center gap-1.5 font-medium cursor-pointer"
+            title="Exportar Animação (GIF ou MP4)"
           >
             <Download size={14} />
             Exportar
@@ -335,6 +328,7 @@ function App() {
 
       {showSplash && <SplashScreen onClose={() => setShowSplash(false)} />}
       {showNewProject && <NewProjectModal onClose={() => setShowNewProject(false)} />}
+      {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} />}
 
       {showShortcuts && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">

@@ -10,9 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@types/gif.js": "^0.2.5",
+    "@types/omggif": "^1.0.5",
+    "@types/quantize": "^1.0.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "gif.js": "^0.2.0",
     "lucide-react": "^1.27.0",
+    "omggif": "^1.0.10",
+    "quantize": "^1.0.2",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "tailwind-merge": "^3.6.0",
