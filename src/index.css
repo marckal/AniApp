@@ -1,0 +1,100 @@
+@import "tailwindcss";
+
+@theme {
+  --color-background: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-light: var(--surface-light);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-inverse: var(--text-inverse);
+  --color-accent-yellow: var(--accent-yellow);
+  --color-accent-red: var(--accent-red);
+  --color-accent-green: var(--accent-green);
+  --color-accent-blue: var(--accent-blue);
+  --color-accent-cyan: var(--accent-cyan);
+  --color-accent-magenta: var(--accent-magenta);
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+/* Tema claro (padrão) */
+:root {
+  --bg: #f0f0f5;
+  --surface: #ffffff;
+  --surface-light: #e8e8f0;
+  --border: #d0d0d8;
+  --primary: #f5c518;
+  --primary-hover: #e0b010;
+  --text: #1a1a20;
+  --text-muted: #6a6a78;
+  --text-inverse: #000000;
+  --accent-yellow: #f5c518;
+  --accent-red: #e63946;
+  --accent-green: #2a9d8f;
+  --accent-blue: #0077b6;
+  --accent-cyan: #00b4d8;
+  --accent-magenta: #bc5090;
+}
+
+/* Tema escuro */
+html[data-theme="dark"] {
+  --bg: #0f0f12;
+  --surface: #1a1a1f;
+  --surface-light: #25252c;
+  --border: #2e2e36;
+  --primary: #f5c518;
+  --primary-hover: #e0b010;
+  --text: #e2e2e8;
+  --text-muted: #8a8a96;
+  --text-inverse: #000000;
+  --accent-yellow: #f5c518;
+  --accent-red: #ff5c5c;
+  --accent-green: #5cff8a;
+  --accent-blue: #5c9cff;
+  --accent-cyan: #5ce8ff;
+  --accent-magenta: #ff5ce8;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+canvas {
+  touch-action: none;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
+}
+
+::selection {
+  background: rgba(124, 92, 255, 0.3);
+}
+
+html[data-theme="light"] ::selection {
+  background: rgba(107, 79, 216, 0.2);
+}
