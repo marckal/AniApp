@@ -1,5 +1,4 @@
 import { GifWriter } from 'omggif';
-import quantize from 'quantize';
 import type { Project } from '@/types';
 import { renderFrameLayers } from '@/lib/canvas/renderer';
 
@@ -8,6 +7,119 @@ export interface ExportProgress {
   totalFrames: number;
   percentage: number;
   status: string;
+}
+
+/**
+ * Quantizador de cores baseado no algoritmo Median Cut (100% Strict Mode Safe)
+ */
+function quantizeColors(pixels: [number, number, number][], maxColors: number) {
+  if (pixels.length === 0) {
+    return {
+      palette: [
+        [0, 0, 0],
+        [255, 255, 255],
+      ] as [number, number, number][],
+      mapColor: (p: [number, number, number]) => p,
+    };
+  }
+
+  interface Box {
+    r1: number;
+    r2: number;
+    g1: number;
+    g2: number;
+    b1: number;
+    b2: number;
+    pts: [number, number, number][];
+  }
+
+  function createBox(pts: [number, number, number][]): Box {
+    let r1 = 255,
+      r2 = 0,
+      g1 = 255,
+      g2 = 0,
+      b1 = 255,
+      b2 = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const [r, g, b] = pts[i];
+      if (r < r1) r1 = r;
+      if (r > r2) r2 = r;
+      if (g < g1) g1 = g;
+      if (g > g2) g2 = g;
+      if (b < b1) b1 = b;
+      if (b > b2) b2 = b;
+    }
+    return { r1, r2, g1, g2, b1, b2, pts };
+  }
+
+  function splitBox(box: Box): [Box, Box] {
+    const rw = box.r2 - box.r1;
+    const gw = box.g2 - box.g1;
+    const bw = box.b2 - box.b1;
+    const maxDim = Math.max(rw, gw, bw);
+    const channel = maxDim === rw ? 0 : maxDim === gw ? 1 : 2;
+
+    box.pts.sort((a, b) => a[channel] - b[channel]);
+    const mid = Math.floor(box.pts.length / 2);
+
+    return [createBox(box.pts.slice(0, mid)), createBox(box.pts.slice(mid))];
+  }
+
+  const boxes: Box[] = [createBox(pixels)];
+
+  while (boxes.length < maxColors) {
+    let maxIdx = -1;
+    let maxVol = -1;
+    for (let i = 0; i < boxes.length; i++) {
+      const b = boxes[i];
+      if (b.pts.length <= 1) continue;
+      const vol = (b.r2 - b.r1 + 1) * (b.g2 - b.g1 + 1) * (b.b2 - b.b1 + 1);
+      if (vol > maxVol) {
+        maxVol = vol;
+        maxIdx = i;
+      }
+    }
+
+    if (maxIdx === -1 || maxVol <= 0) break;
+
+    const target = boxes.splice(maxIdx, 1)[0];
+    const [b1, b2] = splitBox(target);
+    if (b1.pts.length > 0) boxes.push(b1);
+    if (b2.pts.length > 0) boxes.push(b2);
+  }
+
+  const palette: [number, number, number][] = boxes.map((box) => {
+    if (box.pts.length === 0) return [0, 0, 0];
+    let rSum = 0,
+      gSum = 0,
+      bSum = 0;
+    for (let i = 0; i < box.pts.length; i++) {
+      rSum += box.pts[i][0];
+      gSum += box.pts[i][1];
+      bSum += box.pts[i][2];
+    }
+    const len = box.pts.length;
+    return [Math.round(rSum / len), Math.round(gSum / len), Math.round(bSum / len)];
+  });
+
+  const mapColor = (p: [number, number, number]): [number, number, number] => {
+    let minDist = Infinity;
+    let best = palette[0];
+    for (let i = 0; i < palette.length; i++) {
+      const pal = palette[i];
+      const dr = p[0] - pal[0];
+      const dg = p[1] - pal[1];
+      const db = p[2] - pal[2];
+      const dist = dr * dr + dg * dg + db * db;
+      if (dist < minDist) {
+        minDist = dist;
+        best = pal;
+      }
+    }
+    return best;
+  };
+
+  return { palette, mapColor };
 }
 
 /**
@@ -53,26 +165,19 @@ export async function exportToGif(
     const imgData = ctx.getImageData(0, 0, width, height);
     const data = imgData.data;
 
-    // Amostragem de pixels para quantização eficiente de cores
+    // Amostragem de pixels para quantização de cores
     const pixels: [number, number, number][] = [];
     const step = Math.max(1, Math.floor((width * height) / 10000));
     for (let p = 0; p < data.length; p += 4 * step) {
-      // Ignora pixels totalmente transparentes se houver fundo transparente
       pixels.push([data[p], data[p + 1], data[p + 2]]);
     }
 
-    const colorMap = quantize(pixels, 256);
-    const paletteList: [number, number, number][] = colorMap
-      ? colorMap.palette()
-      : [
-          [0, 0, 0],
-          [255, 255, 255],
-        ];
+    const { palette, mapColor } = quantizeColors(pixels, 256);
 
     // Converte paleta [r,g,b] para inteiro 0xRRGGBB
-    const paletteHex = paletteList.map(([r, g, b]) => (r << 16) | (g << 8) | b);
+    const paletteHex = palette.map(([r, g, b]) => (r << 16) | (g << 8) | b);
     const paletteIndexMap = new Map<string, number>();
-    paletteList.forEach(([r, g, b], idx) => {
+    palette.forEach(([r, g, b], idx) => {
       paletteIndexMap.set(`${r},${g},${b}`, idx);
     });
 
@@ -82,7 +187,7 @@ export async function exportToGif(
       const r = data[p];
       const g = data[p + 1];
       const b = data[p + 2];
-      const mapped = colorMap ? colorMap.map([r, g, b]) : [r, g, b];
+      const mapped = mapColor([r, g, b]);
       const key = `${mapped[0]},${mapped[1]},${mapped[2]}`;
       indexedPixels[idx] = paletteIndexMap.get(key) ?? 0;
     }
@@ -146,7 +251,7 @@ export async function exportToMp4(
   const stream = canvas.captureStream(fps);
   const recorder = new MediaRecorder(stream, {
     mimeType,
-    videoBitsPerSecond: 8000000, // 8 Mbps para excelente qualidade de renderização
+    videoBitsPerSecond: 8000000,
   });
 
   const chunks: Blob[] = [];
