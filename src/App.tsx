@@ -8,20 +8,19 @@ import LayerPanel from '@/components/timeline/LayerPanel';
 import NewProjectModal from '@/components/modals/NewProjectModal';
 import SplashScreen from '@/components/modals/SplashScreen';
 import ExportModal from '@/components/modals/ExportModal';
-import PrincipleSelector from '@/components/common/PrincipleSelector';
-import PrincipleInfoCard from '@/components/modals/PrincipleInfoCard';
-import type { AnimationPrinciple } from '@/data/animationPrinciples';
-import { processClipboardPasteEvent, pasteImageFromSystemClipboard } from '@/lib/canvas/imagePaste';
+import { processClipboardPasteEvent } from '@/lib/canvas/imagePaste';
 import AppLogo from '@/components/common/AppLogo';
-import { Save, FolderOpen, Keyboard, Plus, Download, Sun, Moon, ImagePlus } from 'lucide-react';
+import { Save, FolderOpen, Keyboard, Plus, Download, Sun, Moon, Pencil, Check } from 'lucide-react';
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
   const [showNewProject, setShowNewProject] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
-  const [activePrinciple, setActivePrinciple] = useState<AnimationPrinciple | null>(null);
+  const [showSaveToast, setShowSaveToast] = useState(false);
+
   const project = useStore((s) => s.project);
+  const updateProject = useStore((s) => s.updateProject);
   const saveProject = useStore((s) => s.saveProject);
   const loadProject = useStore((s) => s.loadProject);
   const undo = useStore((s) => s.undo);
@@ -133,14 +132,9 @@ function App() {
         case 's':
           if (e.metaKey || e.ctrlKey) {
             e.preventDefault();
-            const data = saveProject();
-            const blob = new Blob([data], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `${project.name}.ani`;
-            a.click();
-            URL.revokeObjectURL(url);
+            saveProject();
+            setShowSaveToast(true);
+            setTimeout(() => setShowSaveToast(false), 2500);
           }
           break;
         case 'o':
@@ -162,9 +156,12 @@ function App() {
       }
     };
 
-    const handlePaste = (e: ClipboardEvent) => {
+    const handlePaste = async (e: ClipboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      processClipboardPasteEvent(e);
+      const handledExternal = await processClipboardPasteEvent(e);
+      if (!handledExternal) {
+        useStore.getState().pasteClipboard();
+      }
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -177,27 +174,40 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen overflow-hidden">
+      {/* Toast de salvamento local */}
+      {showSaveToast && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 bg-emerald-500 text-black px-4 py-2 rounded-xl shadow-lg z-50 text-xs font-bold flex items-center gap-1.5 animate-in fade-in slide-in-from-top duration-200">
+          <Check size={15} />
+          Progresso salvo com sucesso!
+        </div>
+      )}
+
       {/* Barra superior */}
       <header className="relative flex items-center justify-between px-3 h-11 bg-surface border-b border-border select-none z-20">
-        {/* Esquerda: Logo, Nome, Resolução & Seletor dos 12 Princípios */}
+        {/* Esquerda: Logo, Nome editável & Resolução */}
         <div className="flex items-center gap-2.5">
           <AppLogo size="sm" onClick={() => setShowSplash(true)} />
 
           <div className="w-px h-4 bg-border" />
 
-          <span className="text-xs font-medium text-text-muted max-w-[120px] truncate">
-            {project.name}
-          </span>
+          {/* Nome do projeto editável ao clicar */}
+          <button
+            onClick={() => {
+              const newName = prompt('Renomear projeto:', project.name);
+              if (newName && newName.trim()) {
+                updateProject({ name: newName.trim() });
+              }
+            }}
+            className="text-xs font-semibold text-text hover:text-primary max-w-[160px] truncate cursor-pointer transition-colors px-1.5 py-0.5 rounded-md hover:bg-surface-light flex items-center gap-1.5 group"
+            title="Clique para renomear este projeto"
+          >
+            <span className="truncate">{project.name}</span>
+            <Pencil size={11} className="opacity-0 group-hover:opacity-100 text-text-muted transition-opacity flex-shrink-0" />
+          </button>
+
           <span className="text-[10px] text-text-muted/60 font-mono">
             {project.width}×{project.height}
           </span>
-
-          <div className="w-px h-4 bg-border" />
-
-          <PrincipleSelector
-            activePrincipleId={activePrinciple?.id || null}
-            onSelectPrinciple={setActivePrinciple}
-          />
         </div>
 
         {/* Centro: Ações do documento centralizadas (estilo Figma) */}
@@ -232,28 +242,15 @@ function App() {
           </button>
           <button
             onClick={() => {
-              const data = saveProject();
-              const blob = new Blob([data], { type: 'application/json' });
-              const url = URL.createObjectURL(blob);
-              const a = document.createElement('a');
-              a.href = url;
-              a.download = `${project.name}.ani`;
-              a.click();
-              URL.revokeObjectURL(url);
+              saveProject();
+              setShowSaveToast(true);
+              setTimeout(() => setShowSaveToast(false), 2500);
             }}
-            className="px-2.5 py-1 rounded-lg text-xs text-text hover:bg-surface hover:text-primary transition-colors flex items-center gap-1.5 font-medium"
-            title="Salvar Projeto (.ani)"
+            className="px-2.5 py-1 rounded-lg text-xs text-text hover:bg-surface hover:text-primary transition-colors flex items-center gap-1.5 font-medium cursor-pointer"
+            title="Salvar progresso do projeto (Autosave)"
           >
             <Save size={14} />
             Salvar
-          </button>
-          <button
-            onClick={() => pasteImageFromSystemClipboard()}
-            className="px-2.5 py-1 rounded-lg text-xs text-text hover:bg-surface hover:text-primary transition-colors flex items-center gap-1.5 font-medium cursor-pointer"
-            title="Colar Imagem da área de transferência ou arquivo (Ctrl+V / Cmd+V)"
-          >
-            <ImagePlus size={14} className="text-emerald-500" />
-            Colar Imagem
           </button>
           <button
             onClick={() => setShowExportModal(true)}
@@ -306,12 +303,6 @@ function App() {
       {showSplash && <SplashScreen onClose={() => setShowSplash(false)} />}
       {showNewProject && <NewProjectModal onClose={() => setShowNewProject(false)} />}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} />}
-      {activePrinciple && (
-        <PrincipleInfoCard
-          principle={activePrinciple}
-          onClose={() => setActivePrinciple(null)}
-        />
-      )}
 
       {showShortcuts && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">

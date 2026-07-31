@@ -515,6 +515,10 @@ export default function DrawingCanvas() {
       // Fim de arrasto de transformação
       if (transformDrag.current) {
         transformDrag.current = null;
+        const { strokes } = getSelectedStrokes();
+        if (transformRef.current && strokes.length > 0) {
+          transformRef.current.base = strokes;
+        }
         return;
       }
 
