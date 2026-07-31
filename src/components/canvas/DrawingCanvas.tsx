@@ -425,11 +425,11 @@ export default function DrawingCanvas() {
       }
 
       // Inicia caixa de seleção (marquee)
-      cancelTransform();
+      commitTransform();
       setSelection(null);
       selDrag.current = { mode: 'marquee', start: point, indices: [], base: [], pushedUndo: false };
     },
-    [zoom, pan, getSelectedStrokes, cancelTransform, setSelection]
+    [zoom, pan, getSelectedStrokes, commitTransform, setSelection]
   );
 
   const handleSelectPointerMove = useCallback(
