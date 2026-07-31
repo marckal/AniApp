@@ -41,11 +41,12 @@ export function insertImageIntoCanvas(imageUrl: string): Promise<boolean> {
 
       st.addStroke(fi, li, newStroke);
 
-      // Seleciona a imagem recém-colada e ativa a ferramenta de Seleção/Transformação
-      const layer = proj.frames[fi]?.layers[li];
-      const newIndex = layer ? layer.strokes.length - 1 : 0;
-      st.setSelection([newIndex]);
-      st.setTool('select');
+      // Re-read state after addStroke to get the updated layer
+      const updatedSt = useStore.getState();
+      const updatedLayer = updatedSt.project.frames[fi]?.layers[li];
+      const newIndex = updatedLayer ? updatedLayer.strokes.length - 1 : 0;
+      updatedSt.setSelection([newIndex]);
+      updatedSt.setTool('select');
 
       resolve(true);
     };

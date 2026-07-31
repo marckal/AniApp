@@ -36,48 +36,92 @@ function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key.toLowerCase() === 'i') {
-        e.preventDefault();
-        useStore.getState().addFrame();
-        return;
-      }
+      const mod = e.metaKey || e.ctrlKey;
+      const key = e.key.toLowerCase();
 
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key.toLowerCase() === 'd' || e.key.toLowerCase() === 'r')) {
-        e.preventDefault();
-        const st = useStore.getState();
-        st.deleteFrame(st.project.currentFrameIndex);
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key === 'z') {
-        e.preventDefault();
-        if (e.shiftKey) {
-          redo(project.currentFrameIndex, project.currentLayerIndex);
-        } else {
-          undo(project.currentFrameIndex, project.currentLayerIndex);
+      // ---- Modifier combos: handle ALL mod+key before the tool switch ----
+      if (mod) {
+        if (e.shiftKey && key === 'i') {
+          e.preventDefault();
+          useStore.getState().addFrame();
+          return;
         }
+        if (e.shiftKey && (key === 'd' || key === 'r')) {
+          e.preventDefault();
+          const st = useStore.getState();
+          st.deleteFrame(st.project.currentFrameIndex);
+          return;
+        }
+        if (key === 'z') {
+          e.preventDefault();
+          if (e.shiftKey) {
+            redo(project.currentFrameIndex, project.currentLayerIndex);
+          } else {
+            undo(project.currentFrameIndex, project.currentLayerIndex);
+          }
+          return;
+        }
+        if (key === 'c') {
+          e.preventDefault();
+          useStore.getState().copySelection();
+          return;
+        }
+        if (key === 'x') {
+          e.preventDefault();
+          useStore.getState().cutSelection();
+          return;
+        }
+        // Ctrl+V / Cmd+V: Do NOT handle paste here.
+        // The browser fires a 'paste' event which we handle below in handlePaste.
+        // Handling it here would cause double-paste because both handlers fire.
+        if (key === 'v') {
+          // Let the native paste event fire — handlePaste will process it.
+          return;
+        }
+        if (key === 's') {
+          e.preventDefault();
+          saveProject();
+          setShowSaveToast(true);
+          setTimeout(() => setShowSaveToast(false), 2500);
+          return;
+        }
+        if (key === 'n') {
+          e.preventDefault();
+          setShowNewProject(true);
+          return;
+        }
+        if (key === 'o') {
+          e.preventDefault();
+          const input = document.createElement('input');
+          input.type = 'file';
+          input.accept = '.ani,.json';
+          input.onchange = (ev) => {
+            const file = (ev.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = () => loadProject(reader.result as string);
+            reader.readAsText(file);
+          };
+          input.click();
+          return;
+        }
+        if (key === '0') {
+          e.preventDefault();
+          useStore.getState().setZoom(1);
+          useStore.getState().setPan({ x: 0, y: 0 });
+          return;
+        }
+        // Any other mod combo — don't fall through to tool shortcuts
+        return;
       }
 
+      // ---- Non-modifier single keys: tool shortcuts ----
       if (e.key === 'Delete' || e.key === 'Backspace') {
         useStore.getState().deleteSelection();
+        return;
       }
 
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'c') {
-        e.preventDefault();
-        useStore.getState().copySelection();
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'x') {
-        e.preventDefault();
-        useStore.getState().cutSelection();
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'v') {
-        e.preventDefault();
-        useStore.getState().pasteClipboard();
-      }
-
-      switch (e.key.toLowerCase()) {
+      switch (key) {
         case 'b':
           useStore.getState().setTool('brush');
           break;
@@ -107,8 +151,10 @@ function App() {
           break;
         case ' ':
           e.preventDefault();
-          const state = useStore.getState();
-          state.setPlayback({ isPlaying: !state.playback.isPlaying });
+          {
+            const state = useStore.getState();
+            state.setPlayback({ isPlaying: !state.playback.isPlaying });
+          }
           break;
         case '[':
           useStore.getState().setBrush({ size: Math.max(1, useStore.getState().brush.size - 1) });
@@ -116,50 +162,15 @@ function App() {
         case ']':
           useStore.getState().setBrush({ size: Math.min(100, useStore.getState().brush.size + 1) });
           break;
-        case '0':
-          if (e.metaKey || e.ctrlKey) {
-            e.preventDefault();
-            useStore.getState().setZoom(1);
-            useStore.getState().setPan({ x: 0, y: 0 });
-          }
-          break;
-        case 'n':
-          if (e.metaKey || e.ctrlKey) {
-            e.preventDefault();
-            setShowNewProject(true);
-          }
-          break;
-        case 's':
-          if (e.metaKey || e.ctrlKey) {
-            e.preventDefault();
-            saveProject();
-            setShowSaveToast(true);
-            setTimeout(() => setShowSaveToast(false), 2500);
-          }
-          break;
-        case 'o':
-          if (e.metaKey || e.ctrlKey) {
-            e.preventDefault();
-            const input = document.createElement('input');
-            input.type = 'file';
-            input.accept = '.ani,.json';
-            input.onchange = (ev) => {
-              const file = (ev.target as HTMLInputElement).files?.[0];
-              if (!file) return;
-              const reader = new FileReader();
-              reader.onload = () => loadProject(reader.result as string);
-              reader.readAsText(file);
-            };
-            input.click();
-          }
-          break;
       }
     };
 
     const handlePaste = async (e: ClipboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      // Try to handle as an external image paste (from other apps/browser tabs)
       const handledExternal = await processClipboardPasteEvent(e);
       if (!handledExternal) {
+        // No external image — paste from internal AniApp clipboard
         useStore.getState().pasteClipboard();
       }
     };
