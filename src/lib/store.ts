@@ -94,7 +94,8 @@ interface AppState {
   deleteSelection: () => void;
   copySelection: () => number;
   cutSelection: () => number;
-  pasteClipboard: () => void;
+  pasteClipboard: (strokesToPaste?: Stroke[]) => void;
+  setClipboard: (clipboard: Stroke[] | null) => void;
   setOnionSkinOpacity: (opacity: number) => void;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
@@ -317,6 +318,8 @@ export const useStore = create<AppState>((set, get) => {
       };
     }),
 
+  setClipboard: (clipboard) => set({ clipboard }),
+
   // Copia a seleção; sem seleção, copia a camada inteira
   copySelection: () => {
     const state = get();
@@ -334,6 +337,21 @@ export const useStore = create<AppState>((set, get) => {
       .map((i) => cloneStroke(layer.strokes[i]));
     if (copied.length === 0) return 0;
     set({ clipboard: copied });
+
+    // Grava também no Clipboard do Sistema (para funcionar entre abas e navegadores)
+    try {
+      const payload = JSON.stringify({
+        type: 'aniapp/strokes',
+        version: 1,
+        strokes: copied,
+      });
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(payload).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Erro ao gravar dados no clipboard do sistema:', err);
+    }
+
     return copied.length;
   },
 
@@ -347,16 +365,17 @@ export const useStore = create<AppState>((set, get) => {
     return n;
   },
 
-  pasteClipboard: () =>
+  pasteClipboard: (strokesToPaste) =>
     set((state) => {
-      if (!state.clipboard || state.clipboard.length === 0) return state;
+      const clip = strokesToPaste || state.clipboard;
+      if (!clip || clip.length === 0) return state;
       const fi = state.project.currentFrameIndex;
       const li = state.project.currentLayerIndex;
       const layer = state.project.frames[fi]?.layers[li];
       if (!layer) return state;
 
       const m = translation(PASTE_OFFSET, PASTE_OFFSET);
-      const pasted = state.clipboard.map((s) => transformStroke(cloneStroke(s), m));
+      const pasted = clip.map((s) => transformStroke(cloneStroke(s), m));
       const base = layer.strokes.length;
       const strokes = [...layer.strokes, ...pasted];
       const newSelection = pasted.map((_, k) => base + k);
@@ -374,6 +393,7 @@ export const useStore = create<AppState>((set, get) => {
       frames[fi] = frame;
       return {
         project: { ...state.project, frames, updatedAt: Date.now() },
+        clipboard: clip,
         selection: newSelection,
       };
     }),

@@ -575,9 +575,6 @@ export default function DrawingCanvas() {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
       const st = useStore.getState();
       const hasSel = !!st.selection && st.selection.length > 0;
-      const mod = e.metaKey || e.ctrlKey;
-      const key = e.key.toLowerCase();
-
 
       if (transformRef.current) {
         if (e.key === 'Enter') {
@@ -597,22 +594,6 @@ export default function DrawingCanvas() {
       if ((e.key === 'Delete' || e.key === 'Backspace') && hasSel) {
         e.preventDefault();
         st.deleteSelection();
-        return;
-      }
-      if (mod && key === 'c') {
-        // copia a seleção; sem seleção, copia a camada inteira
-        if (st.copySelection() > 0) e.preventDefault();
-        return;
-      }
-      if (mod && key === 'x') {
-        if (st.cutSelection() > 0) e.preventDefault();
-        return;
-      }
-      if (mod && key === 'v') {
-        if (st.clipboard && st.clipboard.length > 0) {
-          e.preventDefault();
-          st.pasteClipboard();
-        }
         return;
       }
     };

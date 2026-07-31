@@ -106,19 +106,29 @@ export async function processClipboardPasteEvent(e: ClipboardEvent): Promise<boo
     });
   }
 
-  // 2. Verifica se foi copiada uma imagem de outra aba do navegador (HTML <img src="...">)
-  const htmlData = e.clipboardData.getData('text/html');
-  if (htmlData) {
-    const imgSrc = extractImageUrlFromHtml(htmlData);
-    if (imgSrc) {
-      e.preventDefault();
-      return await insertImageIntoCanvas(imgSrc);
-    }
-  }
-
-  // 3. Verifica se foi colada uma URL direta de imagem (ex: https://site.com/imagem.png ou data:image/...)
+  // 2. Verifica se há payload de traços AniApp no clipboard do sistema (copiado de outra aba/quadro)
   const textData = e.clipboardData.getData('text/plain')?.trim();
   if (textData) {
+    if (textData.startsWith('{') && textData.includes('aniapp/strokes')) {
+      try {
+        const parsed = JSON.parse(textData);
+        if (
+          parsed &&
+          parsed.type === 'aniapp/strokes' &&
+          Array.isArray(parsed.strokes) &&
+          parsed.strokes.length > 0
+        ) {
+          e.preventDefault();
+          const st = useStore.getState();
+          st.pasteClipboard(parsed.strokes);
+          return true;
+        }
+      } catch (err) {
+        console.warn('Erro ao processar JSON de traços no clipboard:', err);
+      }
+    }
+
+    // 3. Verifica se foi colada uma URL direta de imagem (ex: https://site.com/imagem.png ou data:image/...)
     const isImageUrl =
       /^data:image\//i.test(textData) ||
       /^blob:/i.test(textData) ||
@@ -127,6 +137,16 @@ export async function processClipboardPasteEvent(e: ClipboardEvent): Promise<boo
     if (isImageUrl) {
       e.preventDefault();
       return await insertImageIntoCanvas(textData);
+    }
+  }
+
+  // 4. Verifica se foi copiada uma imagem de outra aba do navegador (HTML <img src="...">)
+  const htmlData = e.clipboardData.getData('text/html');
+  if (htmlData) {
+    const imgSrc = extractImageUrlFromHtml(htmlData);
+    if (imgSrc) {
+      e.preventDefault();
+      return await insertImageIntoCanvas(imgSrc);
     }
   }
 
