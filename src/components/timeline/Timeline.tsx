@@ -200,15 +200,17 @@ export default function Timeline() {
           <button
             onClick={addFrame}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs bg-primary hover:bg-primary-hover text-text-inverse transition-colors font-semibold shadow-sm"
+            title="Adicionar Novo Quadro em Branco (Ctrl+Shift+I)"
           >
             + Quadro
           </button>
           <button
             onClick={handleBatchDuplicate}
-            className="w-8 h-8 rounded-lg flex items-center justify-center text-text-muted hover:text-text hover:bg-surface-light border border-border"
-            title={`Duplicar (${selectedIndices.length} selecionado(s))`}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs bg-surface-light hover:bg-surface border border-border text-text font-semibold transition-colors shadow-xs"
+            title={`Duplicar Quadro (${selectedIndices.length} selecionado(s)) (Ctrl+D)`}
           >
-            <Copy size={14} />
+            <Copy size={13} className="text-primary" />
+            Duplicar Quadro
           </button>
           <button
             onClick={handleBatchDelete}
@@ -535,6 +537,17 @@ export default function Timeline() {
                 ))}
               </select>
             </div>
+
+            <button
+              onClick={() => {
+                duplicateFrame(activeSettingsFrame);
+                setActiveSettingsFrame(null);
+              }}
+              className="w-full py-2 bg-surface-light hover:bg-surface border border-border text-text rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Copy size={14} className="text-primary" />
+              Duplicar Quadro #{activeSettingsFrame + 1}
+            </button>
 
             {selectedIndices.length > 1 && (
               <button

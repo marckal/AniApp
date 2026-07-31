@@ -46,6 +46,12 @@ function App() {
           useStore.getState().addFrame();
           return;
         }
+        if (key === 'd' && !e.shiftKey) {
+          e.preventDefault();
+          const st = useStore.getState();
+          st.duplicateFrame(st.project.currentFrameIndex);
+          return;
+        }
         if (e.shiftKey && (key === 'd' || key === 'r')) {
           e.preventDefault();
           const st = useStore.getState();
