@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/lib/store';
 import { ANIMATION_PRINCIPLES, type AnimationPrinciple } from '@/data/animationPrinciples';
-import { GraduationCap, ChevronDown, Sparkles, Check } from 'lucide-react';
+import { getCustomPrinciplesMap, getCustomPrinciple } from '@/lib/customPrinciples';
+import { GraduationCap, ChevronDown, Sparkles, Check, Star } from 'lucide-react';
 
 interface PrincipleSelectorProps {
   activePrincipleId: string | null;
@@ -13,11 +14,21 @@ export default function PrincipleSelector({
   onSelectPrinciple,
 }: PrincipleSelectorProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [customMap, setCustomMap] = useState<Record<string, any>>({});
   const dropdownRef = useRef<HTMLDivElement>(null);
   const setProject = useStore((s) => s.setProject);
   const setPlayback = useStore((s) => s.setPlayback);
 
   const activePrinciple = ANIMATION_PRINCIPLES.find((p) => p.id === activePrincipleId) || null;
+
+  // Atualiza os exemplos customizados armazenados
+  const refreshCustomMap = () => {
+    setCustomMap(getCustomPrinciplesMap());
+  };
+
+  useEffect(() => {
+    refreshCustomMap();
+  }, [isOpen]);
 
   // Fecha o dropdown se clicar fora
   useEffect(() => {
@@ -31,8 +42,11 @@ export default function PrincipleSelector({
   }, []);
 
   const handleSelect = (principle: AnimationPrinciple) => {
-    const newProj = principle.generateProject();
-    setProject(newProj);
+    // Carrega a versão customizada se existir, ou a padrão
+    const customProj = getCustomPrinciple(principle.id);
+    const projToLoad = customProj || principle.generateProject();
+
+    setProject(projToLoad);
     setPlayback({ isPlaying: true });
     onSelectPrinciple(principle);
     setIsOpen(false);
@@ -73,6 +87,7 @@ export default function PrincipleSelector({
           <div className="max-h-[360px] overflow-y-auto py-1 space-y-0.5 px-1">
             {ANIMATION_PRINCIPLES.map((principle) => {
               const isSelected = activePrincipleId === principle.id;
+              const hasCustom = !!customMap[principle.id];
               return (
                 <button
                   key={principle.id}
@@ -87,12 +102,20 @@ export default function PrincipleSelector({
                     {principle.number}
                   </span>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <span className="font-semibold truncate">{principle.title}</span>
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-semibold truncate flex items-center gap-1">
+                        {principle.title}
+                        {hasCustom && (
+                          <span className="inline-flex items-center gap-0.5 text-[9px] font-bold px-1.5 py-0.2 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                            <Star size={9} className="fill-amber-500 text-amber-500" />
+                            Custom
+                          </span>
+                        )}
+                      </span>
                       {isSelected && <Check size={14} className="text-amber-500 flex-shrink-0" />}
                     </div>
                     <p className="text-[10px] text-text-muted truncate mt-0.5 font-normal">
-                      {principle.shortDesc}
+                      {hasCustom ? '⭐ Exemplo personalizado salvo pelo usuário' : principle.shortDesc}
                     </p>
                   </div>
                 </button>

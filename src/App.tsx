@@ -11,8 +11,9 @@ import ExportModal from '@/components/modals/ExportModal';
 import PrincipleSelector from '@/components/common/PrincipleSelector';
 import PrincipleInfoCard from '@/components/modals/PrincipleInfoCard';
 import type { AnimationPrinciple } from '@/data/animationPrinciples';
+import { processClipboardPasteEvent, pasteImageFromSystemClipboard } from '@/lib/canvas/imagePaste';
 import AppLogo from '@/components/common/AppLogo';
-import { Save, FolderOpen, Keyboard, Plus, Download, Sun, Moon } from 'lucide-react';
+import { Save, FolderOpen, Keyboard, Plus, Download, Sun, Moon, ImagePlus } from 'lucide-react';
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -162,51 +163,8 @@ function App() {
     };
 
     const handlePaste = (e: ClipboardEvent) => {
-      if (!e.clipboardData) return;
-      const items = Array.from(e.clipboardData.items);
-      const imageItem = items.find((item) => item.type.startsWith('image/'));
-      if (imageItem) {
-        e.preventDefault();
-        const file = imageItem.getAsFile();
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = () => {
-          const img = new Image();
-          img.onload = () => {
-            const st = useStore.getState();
-            const proj = st.project;
-            const cx = proj.width / 2;
-            const cy = proj.height / 2;
-            const maxW = Math.min(img.width, proj.width * 0.6);
-            const w = maxW;
-            const h = (maxW / img.width) * img.height;
-            const newStroke: import('@/types').Stroke = {
-              tool: 'image',
-              color: '#000000',
-              size: 1,
-              opacity: 1,
-              imageUrl: reader.result as string,
-              points: [
-                { x: cx - w / 2, y: cy - h / 2 },
-                { x: cx + w / 2, y: cy - h / 2 },
-                { x: cx + w / 2, y: cy + h / 2 },
-                { x: cx - w / 2, y: cy + h / 2 },
-              ],
-              startPoint: { x: cx - w / 2, y: cy - h / 2 },
-              endPoint: { x: cx + w / 2, y: cy + h / 2 },
-            };
-            const fi = proj.currentFrameIndex;
-            const li = proj.currentLayerIndex;
-            st.addStroke(fi, li, newStroke);
-            const layer = proj.frames[fi]?.layers[li];
-            const newIndex = layer ? layer.strokes.length : 0;
-            st.setSelection([newIndex]);
-            st.setTool('select');
-          };
-          img.src = reader.result as string;
-        };
-        reader.readAsDataURL(file);
-      }
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      processClipboardPasteEvent(e);
     };
 
     window.addEventListener('keydown', handleKeyDown);
@@ -288,6 +246,14 @@ function App() {
           >
             <Save size={14} />
             Salvar
+          </button>
+          <button
+            onClick={() => pasteImageFromSystemClipboard()}
+            className="px-2.5 py-1 rounded-lg text-xs text-text hover:bg-surface hover:text-primary transition-colors flex items-center gap-1.5 font-medium cursor-pointer"
+            title="Colar Imagem da área de transferência ou arquivo (Ctrl+V / Cmd+V)"
+          >
+            <ImagePlus size={14} className="text-emerald-500" />
+            Colar Imagem
           </button>
           <button
             onClick={() => setShowExportModal(true)}
