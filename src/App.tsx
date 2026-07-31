@@ -8,6 +8,9 @@ import LayerPanel from '@/components/timeline/LayerPanel';
 import NewProjectModal from '@/components/modals/NewProjectModal';
 import SplashScreen from '@/components/modals/SplashScreen';
 import ExportModal from '@/components/modals/ExportModal';
+import PrincipleSelector from '@/components/common/PrincipleSelector';
+import PrincipleInfoCard from '@/components/modals/PrincipleInfoCard';
+import type { AnimationPrinciple } from '@/data/animationPrinciples';
 import AppLogo from '@/components/common/AppLogo';
 import { Save, FolderOpen, Keyboard, Plus, Download, Sun, Moon } from 'lucide-react';
 
@@ -16,6 +19,7 @@ function App() {
   const [showNewProject, setShowNewProject] = useState(false);
   const [showExportModal, setShowExportModal] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [activePrinciple, setActivePrinciple] = useState<AnimationPrinciple | null>(null);
   const project = useStore((s) => s.project);
   const saveProject = useStore((s) => s.saveProject);
   const loadProject = useStore((s) => s.loadProject);
@@ -217,18 +221,25 @@ function App() {
     <div className="flex flex-col h-screen w-screen overflow-hidden">
       {/* Barra superior */}
       <header className="relative flex items-center justify-between px-3 h-11 bg-surface border-b border-border select-none z-20">
-        {/* Esquerda: Logo, Nome, Resolução & Seletor de FPS */}
+        {/* Esquerda: Logo, Nome, Resolução & Seletor dos 12 Princípios */}
         <div className="flex items-center gap-2.5">
           <AppLogo size="sm" onClick={() => setShowSplash(true)} />
 
           <div className="w-px h-4 bg-border" />
 
-          <span className="text-xs font-medium text-text-muted max-w-[140px] truncate">
+          <span className="text-xs font-medium text-text-muted max-w-[120px] truncate">
             {project.name}
           </span>
           <span className="text-[10px] text-text-muted/60 font-mono">
             {project.width}×{project.height}
           </span>
+
+          <div className="w-px h-4 bg-border" />
+
+          <PrincipleSelector
+            activePrincipleId={activePrinciple?.id || null}
+            onSelectPrinciple={setActivePrinciple}
+          />
         </div>
 
         {/* Centro: Ações do documento centralizadas (estilo Figma) */}
@@ -329,6 +340,12 @@ function App() {
       {showSplash && <SplashScreen onClose={() => setShowSplash(false)} />}
       {showNewProject && <NewProjectModal onClose={() => setShowNewProject(false)} />}
       {showExportModal && <ExportModal onClose={() => setShowExportModal(false)} />}
+      {activePrinciple && (
+        <PrincipleInfoCard
+          principle={activePrinciple}
+          onClose={() => setActivePrinciple(null)}
+        />
+      )}
 
       {showShortcuts && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
