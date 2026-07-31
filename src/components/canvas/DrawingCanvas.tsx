@@ -350,7 +350,7 @@ export default function DrawingCanvas() {
         st.project.frames[st.project.currentFrameIndex]?.layers[st.project.currentLayerIndex];
       if (!layer) return;
 
-      const { indices, strokes } = getSelectedStrokes();
+      let { indices, strokes } = getSelectedStrokes();
 
       // Se já temos seleção ativa ou modo transformação
       if (indices.length > 0) {
@@ -360,6 +360,9 @@ export default function DrawingCanvas() {
           if (e.altKey) {
             st.copySelection();
             st.pasteClipboard();
+            const dupl = getSelectedStrokes();
+            indices = dupl.indices;
+            strokes = dupl.strokes;
           }
 
           for (const h of getHandles(bbox, zoom)) {
@@ -518,6 +521,7 @@ export default function DrawingCanvas() {
         const { strokes } = getSelectedStrokes();
         if (transformRef.current && strokes.length > 0) {
           transformRef.current.base = strokes;
+          transformRef.current.changed = false;
         }
         return;
       }
@@ -559,10 +563,10 @@ export default function DrawingCanvas() {
         setTransformActive(true);
       } else {
         setSelection(null);
-        cancelTransform();
+        commitTransform();
       }
     },
-    [zoom, pan, setSelection, cancelTransform]
+    [zoom, pan, setSelection, commitTransform]
   );
 
   // ---- Teclado: seleção, clipboard, transformação ----
