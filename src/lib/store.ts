@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import type { Project, Frame, Layer, BrushSettings, Tool, PlaybackState, Theme, Stroke } from '@/types';
+import type { Project, Frame, Layer, BrushSettings, Tool, PlaybackState, Theme, Stroke, FrameKind, AppMode } from '@/types';
 import { cloneStroke, transformStroke, translation } from '@/lib/geometry';
+import { buildInbetweens, isKeyish, type InbetweenOptions } from '@/lib/motion';
 
 const PASTE_OFFSET = 16;
 
@@ -69,6 +70,11 @@ interface AppState {
   clipboard: Stroke[] | null;
   onionSkinOpacity: number;
   theme: Theme;
+  mode: AppMode;
+  showMotionPath: boolean;
+  showInbetweenPanel: boolean;
+  /** Incrementado para pedir ao canvas que ajuste o zoom à área visível. */
+  fitViewToken: number;
 
   setProject: (project: Project) => void;
   updateProject: (updates: Partial<Project>) => void;
@@ -99,6 +105,13 @@ interface AppState {
   setOnionSkinOpacity: (opacity: number) => void;
   setTheme: (theme: Theme) => void;
   toggleTheme: () => void;
+  setMode: (mode: AppMode) => void;
+  toggleMotionPath: () => void;
+  setShowInbetweenPanel: (show: boolean) => void;
+  setShowMotionPath: (show: boolean) => void;
+  requestFitView: () => void;
+  setFrameKind: (index: number, kind: FrameKind | undefined) => void;
+  generateInbetweens: (from: number, to: number, options: InbetweenOptions) => boolean;
 
   addFrame: () => void;
   deleteFrame: (index: number) => void;
@@ -127,6 +140,8 @@ interface AppState {
 
 // ---- Persistência de sessão (localStorage, sobrevive ao fechamento) ----
 const STORAGE_KEY = 'aniapp:autosave:v1';
+// Projeto do estúdio guardado enquanto o usuário está no modo Aprender
+const STUDIO_STASH_KEY = 'aniapp:studio-stash:v1';
 const SAVE_DEBOUNCE_MS = 800;
 
 interface PersistedState {
@@ -140,6 +155,8 @@ interface PersistedState {
   snapToGuides: boolean;
   zoom: number;
   pan: { x: number; y: number };
+  mode?: AppMode;
+  showMotionPath?: boolean;
 }
 
 function stripStacks(project: Project): Project {
@@ -188,6 +205,8 @@ export const useStore = create<AppState>((set, get) => {
     loop: true,
     onionSkin: true,
     onionSkinFrames: 2,
+    speed: 1,
+    pingPong: false,
   },
   zoom: persisted?.zoom ?? 1,
   pan: persisted?.pan ?? { x: 0, y: 0 },
@@ -203,6 +222,10 @@ export const useStore = create<AppState>((set, get) => {
   clipboard: null,
   onionSkinOpacity: 0.3,
   theme: 'light',
+  mode: persisted?.mode ?? 'studio',
+  showMotionPath: persisted?.showMotionPath ?? false,
+  showInbetweenPanel: false,
+  fitViewToken: 0,
 
   setProject: (project) => set({ project }),
   updateProject: (updates) =>
@@ -402,6 +425,84 @@ export const useStore = create<AppState>((set, get) => {
   setOnionSkinOpacity: (onionSkinOpacity) => set({ onionSkinOpacity }),
   setTheme: (theme) => set({ theme }),
   toggleTheme: () => set((state) => ({ theme: state.theme === 'dark' ? 'light' : 'dark' })),
+
+  // Entrar no modo Aprender guarda o projeto do estúdio; sair o restaura.
+  setMode: (mode) => {
+    const state = get();
+    if (mode === state.mode) return;
+    if (mode === 'learn') {
+      try {
+        localStorage.setItem(STUDIO_STASH_KEY, JSON.stringify(stripStacks(state.project)));
+      } catch {
+        // sem espaço: o projeto continua no autosave até ser substituído
+      }
+      set({ mode, selection: null });
+      return;
+    }
+    let restored: Project | null = null;
+    try {
+      const raw = localStorage.getItem(STUDIO_STASH_KEY);
+      if (raw) restored = JSON.parse(raw) as Project;
+      localStorage.removeItem(STUDIO_STASH_KEY);
+    } catch {
+      restored = null;
+    }
+    set({
+      mode,
+      selection: null,
+      showInbetweenPanel: false,
+      showMotionPath: false,
+      fitViewToken: state.fitViewToken + 1,
+      playback: { ...state.playback, isPlaying: false, currentTime: 0, speed: 1, pingPong: false },
+      ...(restored?.frames?.length
+        ? {
+            project: { ...stripStacks(restored), currentFrameIndex: 0, currentLayerIndex: 0 },
+            canvasSize: { width: restored.width, height: restored.height },
+          }
+        : {}),
+    });
+  },
+
+  toggleMotionPath: () => set((state) => ({ showMotionPath: !state.showMotionPath })),
+  setShowInbetweenPanel: (showInbetweenPanel) => set({ showInbetweenPanel }),
+  setShowMotionPath: (showMotionPath) => set({ showMotionPath }),
+  requestFitView: () => set((state) => ({ fitViewToken: state.fitViewToken + 1 })),
+
+  setFrameKind: (index, kind) =>
+    set((state) => {
+      if (!state.project.frames[index]) return state;
+      const frames = [...state.project.frames];
+      frames[index] = { ...frames[index], kind };
+      return { project: { ...state.project, frames, updatedAt: Date.now() } };
+    }),
+
+  // Substitui os intermediários entre duas poses chave pelos gerados
+  generateInbetweens: (from, to, options) => {
+    const state = get();
+    const all = state.project.frames;
+    if (from < 0 || to >= all.length || to <= from) return false;
+    // Não apaga poses desenhadas pelo usuário que estejam no meio
+    for (let i = from + 1; i < to; i++) if (isKeyish(all[i])) return false;
+    const generated = buildInbetweens(all, from, to, options);
+    if (generated.length === 0) return false;
+    const frames = [
+      ...all.slice(0, from),
+      { ...all[from], kind: all[from].kind ?? 'key' },
+      ...generated,
+      { ...all[to], kind: all[to].kind ?? 'key' },
+      ...all.slice(to + 1),
+    ];
+    set({
+      project: {
+        ...state.project,
+        frames,
+        currentFrameIndex: Math.min(state.project.currentFrameIndex, frames.length - 1),
+        updatedAt: Date.now(),
+      },
+      selection: null,
+    });
+    return true;
+  },
 
   addFrame: () =>
     set((state) => {
@@ -753,6 +854,8 @@ if (typeof window !== 'undefined') {
           snapToGuides: state.snapToGuides,
           zoom: state.zoom,
           pan: state.pan,
+          mode: state.mode,
+          showMotionPath: state.showMotionPath,
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       } catch {

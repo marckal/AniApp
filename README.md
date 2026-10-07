@@ -24,6 +24,15 @@ Uma ferramenta de animação web inspirada no Flipnote (Nintendo DS) e Procreate
 - **Easing curves**: Linear, Ease In, Ease Out, Ease In-Out, e funções cúbicas, senoidais e exponenciais
 - **Editor de curva customizada** com pontos de controle
 
+### Modo Aprender
+- **Trilha dos 12 princípios** em ordem pedagógica, com progresso salvo no navegador
+- Etapas **Ver → Fazer → Comparar** para cada princípio
+- **Exercício guiado de Slow In & Slow Out** com checklist e retorno automático
+- **Gerador de intermediários** entre poses chave, com curva de easing e opção de seguir o arco
+- **Trajetória e gráfico de espaçamento** sobre o canvas, régua de espaçamento e velocidade por quadro
+- Quadros marcados como **Chave (K)**, **Breakdown (B)** ou **Intermediário (I)**
+- Reprodução em **0,25× / 0,5×** e em **ping-pong**
+
 ### Camadas
 - Múltiplas camadas por frame
 - Controle de opacidade e visibilidade

@@ -15,9 +15,20 @@ import {
   Gauge,
   X,
   Check,
+  ArrowLeftRight,
+  Spline,
+  Wand2,
 } from 'lucide-react';
 import { EASING_OPTIONS } from '@/lib/easing';
-import type { EaseType } from '@/types';
+import type { EaseType, FrameKind } from '@/types';
+
+const KIND_STYLE: Record<FrameKind, { label: string; title: string; className: string }> = {
+  key: { label: 'K', title: 'Chave (keyframe)', className: 'bg-accent-blue text-white' },
+  breakdown: { label: 'B', title: 'Breakdown (pose de passagem)', className: 'bg-accent-magenta text-white' },
+  inbetween: { label: 'I', title: 'Intermediário (inbetween)', className: 'bg-text-muted/60 text-white' },
+};
+const KIND_CYCLE: (FrameKind | undefined)[] = [undefined, 'key', 'breakdown', 'inbetween'];
+const SPEEDS = [0.25, 0.5, 1];
 
 export default function Timeline() {
   const project = useStore((s) => s.project);
@@ -32,6 +43,11 @@ export default function Timeline() {
   const updateFrame = useStore((s) => s.updateFrame);
   const onionSkinOpacity = useStore((s) => s.onionSkinOpacity);
   const setOnionSkinOpacity = useStore((s) => s.setOnionSkinOpacity);
+  const setFrameKind = useStore((s) => s.setFrameKind);
+  const showMotionPath = useStore((s) => s.showMotionPath);
+  const toggleMotionPath = useStore((s) => s.toggleMotionPath);
+  const showInbetweenPanel = useStore((s) => s.showInbetweenPanel);
+  const setShowInbetweenPanel = useStore((s) => s.setShowInbetweenPanel);
 
   // Seleção múltipla de frames
   const [selectedIndices, setSelectedIndices] = useState<number[]>([project.currentFrameIndex]);
@@ -70,37 +86,37 @@ export default function Timeline() {
       lastTimeRef.current = timestamp;
 
       const state = useStore.getState();
-      const newTime = state.playback.currentTime + delta * state.project.fps;
-      let accumulated = 0;
-      let frameIdx = 0;
+      const { speed = 1, pingPong = false, loop: shouldLoop } = state.playback;
+      const total = state.project.frames.reduce((sum, f) => sum + f.duration, 0);
+      // Em ping-pong o ciclo vai e volta: o tempo corre em [0, 2·total)
+      const cycle = pingPong ? 2 * total : total;
+      let newTime = state.playback.currentTime + delta * state.project.fps * speed;
 
+      if (newTime >= cycle) {
+        if (!shouldLoop) {
+          setPlayback({ isPlaying: false, currentTime: pingPong ? 0 : total });
+          if (pingPong) setCurrentFrame(0);
+          return;
+        }
+        newTime %= cycle;
+      }
+
+      const t = newTime < total ? newTime : Math.max(0, cycle - newTime - 1e-6);
+      let accumulated = 0;
+      let frameIdx = state.project.frames.length - 1;
       for (let i = 0; i < state.project.frames.length; i++) {
-        if (accumulated + state.project.frames[i].duration > newTime) {
+        if (accumulated + state.project.frames[i].duration > t) {
           frameIdx = i;
           break;
         }
         accumulated += state.project.frames[i].duration;
       }
 
-      const total = state.project.frames.reduce((sum, f) => sum + f.duration, 0);
-
-      if (newTime >= total) {
-        if (state.playback.loop) {
-          setPlayback({ currentTime: 0 });
-          setCurrentFrame(0);
-          lastTimeRef.current = timestamp;
-          animationFrameRef.current = requestAnimationFrame(loop);
-        } else {
-          setPlayback({ isPlaying: false, currentTime: total });
-          return;
-        }
-      } else {
-        setPlayback({ currentTime: newTime });
-        if (frameIdx !== state.project.currentFrameIndex) {
-          setCurrentFrame(frameIdx);
-        }
-        animationFrameRef.current = requestAnimationFrame(loop);
+      setPlayback({ currentTime: newTime });
+      if (frameIdx !== state.project.currentFrameIndex) {
+        setCurrentFrame(frameIdx);
       }
+      animationFrameRef.current = requestAnimationFrame(loop);
     };
 
     lastTimeRef.current = 0;
@@ -115,7 +131,9 @@ export default function Timeline() {
   }, [playback.isPlaying, setPlayback, setCurrentFrame]);
 
   const handlePlay = () => {
-    setPlayback({ isPlaying: !playback.isPlaying });
+    // Recomeça do início se a reprodução sem loop já chegou ao fim
+    const atEnd = !playback.loop && playback.currentTime >= totalDuration;
+    setPlayback({ isPlaying: !playback.isPlaying, ...(atEnd ? { currentTime: 0 } : {}) });
   };
 
   const handleStop = () => {
@@ -293,6 +311,31 @@ export default function Timeline() {
           </button>
 
           <button
+            onClick={() => setPlayback({ pingPong: !playback.pingPong, currentTime: 0 })}
+            className={`w-7 h-7 rounded-lg flex items-center justify-center transition-colors ${
+              playback.pingPong
+                ? 'bg-accent-green/20 text-accent-green border border-accent-green/30'
+                : 'text-text-muted hover:text-text hover:bg-surface'
+            }`}
+            title="Ping-pong (vai e volta)"
+          >
+            <ArrowLeftRight size={14} />
+          </button>
+
+          <select
+            value={playback.speed ?? 1}
+            onChange={(e) => setPlayback({ speed: Number(e.target.value) })}
+            className="bg-surface border border-border rounded-lg px-1 py-0.5 text-xs font-mono text-text focus:outline-none cursor-pointer"
+            title="Velocidade de reprodução (câmera lenta para estudar o movimento)"
+          >
+            {SPEEDS.map((v) => (
+              <option key={v} value={v}>
+                {String(v).replace('.', ',')}×
+              </option>
+            ))}
+          </select>
+
+          <button
             onClick={() =>
               setCurrentFrame(Math.min(project.frames.length - 1, project.currentFrameIndex + 1))
             }
@@ -329,6 +372,31 @@ export default function Timeline() {
 
         {/* Direita: Onion Skin & Easing */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={toggleMotionPath}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors border ${
+              showMotionPath
+                ? 'bg-primary/20 text-text border-primary/50'
+                : 'text-text-muted border-border hover:text-text hover:bg-surface-light'
+            }`}
+            title="Mostrar trajetória e espaçamento da camada ativa"
+          >
+            <Spline size={12} />
+            Trajetória
+          </button>
+          <button
+            onClick={() => setShowInbetweenPanel(!showInbetweenPanel)}
+            className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-colors border ${
+              showInbetweenPanel
+                ? 'bg-primary text-text-inverse border-primary'
+                : 'text-text-muted border-border hover:text-text hover:bg-surface-light'
+            }`}
+            title="Gerar quadros intermediários entre poses chave"
+          >
+            <Wand2 size={12} />
+            Intermediários
+          </button>
+
           {/* Easing */}
           <div className="relative">
             <button
@@ -431,6 +499,23 @@ export default function Timeline() {
                   title="Configurar opções do quadro"
                 >
                   <Settings2 size={10} />
+                </button>
+
+                {/* Papel do quadro: clique alterna entre nenhum → K → B → I */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const next = KIND_CYCLE[(KIND_CYCLE.indexOf(frame.kind) + 1) % KIND_CYCLE.length];
+                    setFrameKind(index, next);
+                  }}
+                  className={`absolute bottom-2 left-1 z-10 h-3.5 min-w-3.5 px-0.5 rounded text-[8px] font-extrabold leading-none flex items-center justify-center transition-opacity ${
+                    frame.kind
+                      ? KIND_STYLE[frame.kind].className
+                      : 'opacity-0 group-hover:opacity-100 border border-dashed border-text-muted/50 text-text-muted'
+                  }`}
+                  title={frame.kind ? `${KIND_STYLE[frame.kind].title} — clique para mudar` : 'Marcar papel do quadro'}
+                >
+                  {frame.kind ? KIND_STYLE[frame.kind].label : '?'}
                 </button>
 
                 {/* Thumbnail / Conteúdo do frame */}
