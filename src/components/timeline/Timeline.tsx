@@ -49,9 +49,9 @@ export default function Timeline() {
 
   // Sincroniza seleção simples quando o frame atual muda por playback
   useEffect(() => {
-    if (!selectedIndices.includes(project.currentFrameIndex)) {
-      setSelectedIndices([project.currentFrameIndex]);
-    }
+    setSelectedIndices((prev) =>
+      prev.includes(project.currentFrameIndex) ? prev : [project.currentFrameIndex]
+    );
   }, [project.currentFrameIndex]);
 
   // Playback loop
@@ -112,7 +112,7 @@ export default function Timeline() {
         animationFrameRef.current = null;
       }
     };
-  }, [playback.isPlaying]);
+  }, [playback.isPlaying, setPlayback, setCurrentFrame]);
 
   const handlePlay = () => {
     setPlayback({ isPlaying: !playback.isPlaying });
