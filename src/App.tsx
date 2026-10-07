@@ -10,7 +10,13 @@ import SplashScreen from '@/components/modals/SplashScreen';
 import ExportModal from '@/components/modals/ExportModal';
 import { processClipboardPasteEvent } from '@/lib/canvas/imagePaste';
 import AppLogo from '@/components/common/AppLogo';
-import { Save, FolderOpen, Keyboard, Plus, Download, Sun, Moon, Pencil, Check } from 'lucide-react';
+import InbetweenPanel from '@/components/tools/InbetweenPanel';
+import LearnSidebar from '@/components/learn/LearnSidebar';
+import MotionPanel from '@/components/learn/MotionPanel';
+import { useLearn } from '@/lib/learnStore';
+import { LEARN_ORDER } from '@/data/learnPath';
+import type { AppMode } from '@/types';
+import { Save, FolderOpen, Keyboard, Plus, Download, Sun, Moon, Pencil, Check, Palette, GraduationCap } from 'lucide-react';
 
 function App() {
   const [showSplash, setShowSplash] = useState(true);
@@ -27,6 +33,19 @@ function App() {
   const redo = useStore((s) => s.redo);
   const theme = useStore((s) => s.theme);
   const toggleTheme = useStore((s) => s.toggleTheme);
+  const mode = useStore((s) => s.mode);
+  const setMode = useStore((s) => s.setMode);
+  const showInbetweenPanel = useStore((s) => s.showInbetweenPanel);
+  const learnDone = useLearn((s) => s.done.length);
+
+  const switchMode = (next: AppMode) => {
+    if (next === mode) return;
+    setMode(next);
+    if (next === 'learn') {
+      const { principleId, step } = useLearn.getState();
+      useLearn.getState().open(principleId, step);
+    }
+  };
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -207,6 +226,26 @@ function App() {
 
           <div className="w-px h-4 bg-border" />
 
+          <div className="flex items-center gap-0.5 bg-surface-light border border-border rounded-lg p-0.5">
+            {([
+              ['studio', 'Estúdio', Palette],
+              ['learn', 'Aprender', GraduationCap],
+            ] as const).map(([id, label, Icon]) => (
+              <button
+                key={id}
+                onClick={() => switchMode(id)}
+                className={`px-2.5 py-0.5 rounded-md text-xs font-semibold flex items-center gap-1.5 transition-colors ${
+                  mode === id ? 'bg-primary text-text-inverse' : 'text-text-muted hover:text-text'
+                }`}
+              >
+                <Icon size={13} />
+                {label}
+              </button>
+            ))}
+          </div>
+
+          <div className="w-px h-4 bg-border" />
+
           {/* Nome do projeto editável ao clicar */}
           <button
             onClick={() => {
@@ -227,7 +266,23 @@ function App() {
           </span>
         </div>
 
+        {mode === 'learn' && (
+          <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-2 text-xs text-text-muted">
+            Trilha
+            <div className="w-32 h-1.5 rounded bg-surface-light overflow-hidden">
+              <div
+                className="h-full bg-accent-green transition-all"
+                style={{ width: `${(learnDone / LEARN_ORDER.length) * 100}%` }}
+              />
+            </div>
+            <b className="text-text font-mono">
+              {learnDone} / {LEARN_ORDER.length}
+            </b>
+          </div>
+        )}
+
         {/* Centro: Ações do documento centralizadas (estilo Figma) */}
+        {mode === 'studio' && (
         <div className="absolute left-1/2 -translate-x-1/2 flex items-center gap-1 bg-surface-light/90 border border-border rounded-xl p-1 shadow-sm">
           <button
             onClick={() => setShowNewProject(true)}
@@ -278,6 +333,7 @@ function App() {
             Exportar
           </button>
         </div>
+        )}
 
         {/* Direita: Tema e Atalhos */}
         <div className="flex items-center gap-1">
@@ -303,14 +359,23 @@ function App() {
       <div className="flex flex-1 overflow-hidden">
         <div className="flex flex-col flex-1 overflow-hidden">
           <div className="flex flex-1 overflow-hidden">
+            {mode === 'learn' && <LearnSidebar />}
+
             {/* Viewport do Canvas com Barra de Tarefas Flutuante */}
             <div className="flex-1 relative overflow-hidden">
               <DrawingCanvas />
               <Toolbar />
+              {showInbetweenPanel && <InbetweenPanel />}
             </div>
 
-            <BrushSettings />
-            <LayerPanel />
+            {mode === 'studio' ? (
+              <>
+                <BrushSettings />
+                <LayerPanel />
+              </>
+            ) : (
+              <MotionPanel />
+            )}
           </div>
 
           <Timeline />

@@ -21,6 +21,7 @@ import {
 import { hexToRgba, getCanvasCoordinates, constrainPoint } from '@/lib/canvas/coordinateSystem';
 import { drawShapeOnContext, renderFrameLayers } from '@/lib/canvas/renderer';
 import CanvasRulers from './CanvasRulers';
+import { drawMotionPath } from '@/lib/canvas/motionOverlay';
 
 const SNAP_DISTANCE = 8; // px em coordenadas de tela
 
@@ -135,6 +136,8 @@ export default function DrawingCanvas() {
   const guides = useStore((s) => s.guides);
   const playback = useStore((s) => s.playback);
   const onionSkinOpacity = useStore((s) => s.onionSkinOpacity);
+  const showMotionPath = useStore((s) => s.showMotionPath);
+  const fitViewToken = useStore((s) => s.fitViewToken);
   const addStroke = useStore((s) => s.addStroke);
   const setZoom = useStore((s) => s.setZoom);
   const setPan = useStore((s) => s.setPan);
@@ -238,15 +241,32 @@ export default function DrawingCanvas() {
     }
 
     renderFrame(ctx, project.currentFrameIndex, 1);
+
+    if (showMotionPath) {
+      drawMotionPath(ctx, project, project.currentLayerIndex);
+    }
   }, [
     project,
     renderFrame,
     showGrid,
+    showMotionPath,
     playback.onionSkin,
     playback.onionSkinFrames,
     tool,
     onionSkinOpacity,
   ]);
+
+  // Ajusta o zoom para o projeto inteiro caber na área visível (ao abrir lições etc.)
+  useEffect(() => {
+    if (fitViewToken === 0) return;
+    const container = containerRef.current;
+    if (!container) return;
+    const { width, height } = container.getBoundingClientRect();
+    const { project: p, setZoom: z, setPan: pn } = useStore.getState();
+    // Margem extra embaixo para a barra de ferramentas flutuante
+    z(Math.min((width - 48) / p.width, (height - 140) / p.height));
+    pn({ x: 0, y: -40 });
+  }, [fitViewToken]);
 
   // ---- Seleção: helpers ----
   const getSelectedStrokes = useCallback((): { indices: number[]; strokes: Stroke[] } => {
@@ -566,7 +586,7 @@ export default function DrawingCanvas() {
         commitTransform();
       }
     },
-    [zoom, pan, setSelection, commitTransform]
+    [zoom, pan, setSelection, commitTransform, getSelectedStrokes]
   );
 
   // ---- Teclado: seleção, clipboard, transformação ----
@@ -762,7 +782,7 @@ export default function DrawingCanvas() {
         }
       }
     },
-    [currentLayer, tool, brush, zoom, pan, commitStroke, pickColor, isShapeTool, snapPoint]
+    [currentLayer, tool, brush, zoom, pan, commitStroke, pickColor, isShapeTool, snapPoint, snapPointToGrid]
   );
 
   const handlePointerMove = useCallback(
@@ -839,7 +859,7 @@ export default function DrawingCanvas() {
         }
       }
     },
-    [currentLayer, tool, brush, zoom, pan, isShapeTool, snapPoint]
+    [currentLayer, tool, brush, zoom, pan, isShapeTool, snapPoint, snapPointToGrid]
   );
 
   const handlePointerUp = useCallback(

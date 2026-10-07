@@ -16,6 +16,9 @@ export type EaseType =
   | 'ease-in-out-expo'
   | 'custom';
 export type Theme = 'dark' | 'light';
+// Papel do quadro na animação: chave, breakdown (pose de passagem) ou intermediário
+export type FrameKind = 'key' | 'breakdown' | 'inbetween';
+export type AppMode = 'studio' | 'learn';
 
 export interface Point {
   x: number;
@@ -58,6 +61,7 @@ export interface Frame {
   duration: number; // em frames (a 24fps, 1 = 1/24s)
   easing: EaseType;
   customCurve: Point[]; // para easing customizado
+  kind?: FrameKind;
 }
 
 export interface Project {
@@ -93,4 +97,6 @@ export interface PlaybackState {
   loop: boolean;
   onionSkin: boolean;
   onionSkinFrames: number;
+  speed?: number; // multiplicador de velocidade (0.25, 0.5, 1)
+  pingPong?: boolean;
 }
