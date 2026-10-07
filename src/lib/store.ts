@@ -191,7 +191,9 @@ export const useStore = create<AppState>((set, get) => {
   },
   zoom: persisted?.zoom ?? 1,
   pan: persisted?.pan ?? { x: 0, y: 0 },
-  canvasSize: { width: 1920, height: 1080 },
+  canvasSize: persisted?.project
+    ? { width: persisted.project.width, height: persisted.project.height }
+    : { width: 1920, height: 1080 },
   showGrid: persisted?.showGrid ?? false,
   showRulers: persisted?.showRulers ?? true,
   showGuides: persisted?.showGuides ?? true,
@@ -440,6 +442,7 @@ export const useStore = create<AppState>((set, get) => {
   duplicateFrame: (index) =>
     set((state) => {
       const frame = state.project.frames[index];
+      if (!frame) return state;
       const newFrame: Frame = {
         ...frame,
         id: generateId(),
@@ -466,6 +469,7 @@ export const useStore = create<AppState>((set, get) => {
   moveFrame: (from, to) =>
     set((state) => {
       const frames = [...state.project.frames];
+      if (from < 0 || from >= frames.length || to < 0 || to >= frames.length) return state;
       const [moved] = frames.splice(from, 1);
       frames.splice(to, 0, moved);
       return {
@@ -479,10 +483,19 @@ export const useStore = create<AppState>((set, get) => {
     }),
 
   setCurrentFrame: (index) =>
-    set((state) => ({
-      project: { ...state.project, currentFrameIndex: index },
-      selection: null,
-    })),
+    set((state) => {
+      const frames = state.project.frames;
+      if (index < 0 || index >= frames.length) return state;
+      // evita índice de camada fora do intervalo ao trocar para frame com menos camadas
+      const currentLayerIndex = Math.min(
+        state.project.currentLayerIndex,
+        frames[index].layers.length - 1
+      );
+      return {
+        project: { ...state.project, currentFrameIndex: index, currentLayerIndex },
+        selection: null,
+      };
+    }),
 
   updateFrame: (index, updates) =>
     set((state) => {
@@ -496,11 +509,12 @@ export const useStore = create<AppState>((set, get) => {
   addLayer: () =>
     set((state) => {
       const frames = [...state.project.frames];
-      const frame = frames[state.project.currentFrameIndex];
+      const frame = { ...frames[state.project.currentFrameIndex] };
       const count = frame.layers.length + 1;
       const newLayer = createDefaultLayer();
       newLayer.name = `Camada ${count}`;
       frame.layers = [...frame.layers, newLayer];
+      frames[state.project.currentFrameIndex] = frame;
       return {
         project: {
           ...state.project,
@@ -514,9 +528,10 @@ export const useStore = create<AppState>((set, get) => {
   deleteLayer: (index) =>
     set((state) => {
       const frames = [...state.project.frames];
-      const frame = frames[state.project.currentFrameIndex];
+      const frame = { ...frames[state.project.currentFrameIndex] };
       if (frame.layers.length <= 1) return state;
       frame.layers = frame.layers.filter((_, i) => i !== index);
+      frames[state.project.currentFrameIndex] = frame;
       let currentLayerIndex = state.project.currentLayerIndex;
       if (index < currentLayerIndex) {
         currentLayerIndex--;
@@ -536,11 +551,13 @@ export const useStore = create<AppState>((set, get) => {
   moveLayer: (from, to) =>
     set((state) => {
       const frames = [...state.project.frames];
-      const frame = frames[state.project.currentFrameIndex];
+      const frame = { ...frames[state.project.currentFrameIndex] };
       const layers = [...frame.layers];
+      if (from < 0 || from >= layers.length || to < 0 || to >= layers.length) return state;
       const [moved] = layers.splice(from, 1);
       layers.splice(to, 0, moved);
       frame.layers = layers;
+      frames[state.project.currentFrameIndex] = frame;
       return {
         project: {
           ...state.project,
@@ -554,8 +571,10 @@ export const useStore = create<AppState>((set, get) => {
   toggleLayerVisibility: (index) =>
     set((state) => {
       const frames = [...state.project.frames];
-      const frame = frames[state.project.currentFrameIndex];
-      frame.layers[index].visible = !frame.layers[index].visible;
+      const fi = state.project.currentFrameIndex;
+      const frame = { ...frames[fi] };
+      frame.layers = frame.layers.map((l, i) => (i === index ? { ...l, visible: !l.visible } : l));
+      frames[fi] = frame;
       return {
         project: { ...state.project, frames, updatedAt: Date.now() },
       };
@@ -564,8 +583,10 @@ export const useStore = create<AppState>((set, get) => {
   setLayerOpacity: (index, opacity) =>
     set((state) => {
       const frames = [...state.project.frames];
-      const frame = frames[state.project.currentFrameIndex];
-      frame.layers[index].opacity = opacity;
+      const fi = state.project.currentFrameIndex;
+      const frame = { ...frames[fi] };
+      frame.layers = frame.layers.map((l, i) => (i === index ? { ...l, opacity: opacity } : l));
+      frames[fi] = frame;
       return {
         project: { ...state.project, frames, updatedAt: Date.now() },
       };
@@ -580,8 +601,10 @@ export const useStore = create<AppState>((set, get) => {
   renameLayer: (index, name) =>
     set((state) => {
       const frames = [...state.project.frames];
-      const frame = frames[state.project.currentFrameIndex];
-      frame.layers[index].name = name;
+      const fi = state.project.currentFrameIndex;
+      const frame = { ...frames[fi] };
+      frame.layers = frame.layers.map((l, i) => (i === index ? { ...l, name: name } : l));
+      frames[fi] = frame;
       return {
         project: { ...state.project, frames, updatedAt: Date.now() },
       };
@@ -689,8 +712,15 @@ export const useStore = create<AppState>((set, get) => {
   loadProject: (json) => {
     try {
       const project: Project = JSON.parse(json);
+      if (!project?.frames?.length || !project.width || !project.height) {
+        throw new Error('Arquivo de projeto inválido');
+      }
       set({
-        project: stripStacks(project),
+        project: {
+          ...stripStacks(project),
+          currentFrameIndex: 0,
+          currentLayerIndex: 0,
+        },
         canvasSize: { width: project.width, height: project.height },
         selection: null,
         clipboard: null,

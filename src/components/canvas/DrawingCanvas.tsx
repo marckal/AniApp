@@ -566,7 +566,7 @@ export default function DrawingCanvas() {
         commitTransform();
       }
     },
-    [zoom, pan, setSelection, commitTransform]
+    [zoom, pan, setSelection, commitTransform, getSelectedStrokes]
   );
 
   // ---- Teclado: seleção, clipboard, transformação ----
@@ -762,7 +762,7 @@ export default function DrawingCanvas() {
         }
       }
     },
-    [currentLayer, tool, brush, zoom, pan, commitStroke, pickColor, isShapeTool, snapPoint]
+    [currentLayer, tool, brush, zoom, pan, commitStroke, pickColor, isShapeTool, snapPoint, snapPointToGrid]
   );
 
   const handlePointerMove = useCallback(
@@ -839,7 +839,7 @@ export default function DrawingCanvas() {
         }
       }
     },
-    [currentLayer, tool, brush, zoom, pan, isShapeTool, snapPoint]
+    [currentLayer, tool, brush, zoom, pan, isShapeTool, snapPoint, snapPointToGrid]
   );
 
   const handlePointerUp = useCallback(

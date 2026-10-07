@@ -64,7 +64,6 @@ export function easeInOutExpo(t: number): number {
 export function cubicBezier(t: number, cp1: number, cp2: number): number {
   const mt = 1 - t;
   return (
-    mt * mt * mt * 0 +
     3 * mt * mt * t * cp1 +
     3 * mt * t * t * cp2 +
     t * t * t * 1
